@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import ToolCard from '@/components/ToolCard'
 import { Tool } from '@/lib/types'
 
+export const dynamic = 'force-dynamic'
+
 export default async function DashboardPage() {
   const supabase = await createClient()
 

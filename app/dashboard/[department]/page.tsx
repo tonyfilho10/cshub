@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import ToolCard from '@/components/ToolCard'
 import { Tool } from '@/lib/types'
 
+export const dynamic = 'force-dynamic'
+
 const DEPARTMENT_LABELS: Record<string, string> = {
   onboarding: 'Onboarding',
   comercial: 'Comercial',
