@@ -13,12 +13,22 @@ export default async function DashboardPage() {
     .eq('active', true)
     .order('name')
 
+  // Deduplica por URL — exibe cada ferramenta apenas uma vez na visão geral
+  const unique = tools
+    ? Object.values(
+        tools.reduce((acc: Record<string, Tool>, tool: Tool) => {
+          if (!acc[tool.url]) acc[tool.url] = tool
+          return acc
+        }, {})
+      )
+    : []
+
   return (
     <div>
       <h2 className="text-xl font-semibold text-foreground mb-6">Todas as Ferramentas</h2>
-      {tools && tools.length > 0 ? (
+      {unique.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {tools.map((tool: Tool) => (
+          {unique.map((tool: Tool) => (
             <ToolCard key={tool.id} tool={tool} />
           ))}
         </div>
