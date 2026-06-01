@@ -26,9 +26,12 @@ async function assertAdmin() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Não autenticado.')
 
-  const prisma = getPrisma()
-  const profile = await prisma.profile.findUnique({ where: { id: user.id } })
-  await prisma.$disconnect()
+  const admin = getAdminClient()
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
 
   if (profile?.role !== 'ADMIN') throw new Error('Acesso negado.')
 }

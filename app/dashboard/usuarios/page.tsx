@@ -1,26 +1,31 @@
 import { createClient } from '@/lib/supabase/server'
-import { Pool } from 'pg'
-import { PrismaPg } from '@prisma/adapter-pg'
-import { PrismaClient } from '@/lib/generated/prisma/client'
+import { createClient as createAdmin } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import UsersClient from './UsersClient'
+import { Profile, Role } from '@/lib/generated/prisma/client'
 
 export const dynamic = 'force-dynamic'
 
 async function getProfilesAsAdmin(userId: string) {
-  const pool = new Pool({ connectionString: process.env.DIRECT_URL })
-  const adapter = new PrismaPg(pool)
-  const prisma = new PrismaClient({ adapter })
+  const admin = createAdmin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SECRET_KEY!
+  )
 
-  const me = await prisma.profile.findUnique({ where: { id: userId } })
-  if (me?.role !== 'ADMIN') {
-    await prisma.$disconnect()
-    return null
-  }
+  const { data: me } = await admin
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
 
-  const profiles = await prisma.profile.findMany({ orderBy: { createdAt: 'asc' } })
-  await prisma.$disconnect()
-  return { profiles, me }
+  if (me?.role !== 'ADMIN') return null
+
+  const { data: profiles } = await admin
+    .from('profiles')
+    .select('*')
+    .order('created_at', { ascending: true })
+
+  return profiles as Profile[] | null
 }
 
 export default async function UsuariosPage() {
@@ -28,8 +33,8 @@ export default async function UsuariosPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const result = await getProfilesAsAdmin(user.id)
-  if (!result) redirect('/dashboard')
+  const profiles = await getProfilesAsAdmin(user.id)
+  if (!profiles) redirect('/dashboard')
 
-  return <UsersClient profiles={result.profiles} currentUserId={user.id} />
+  return <UsersClient profiles={profiles} currentUserId={user.id} />
 }
