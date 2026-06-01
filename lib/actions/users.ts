@@ -4,6 +4,7 @@ import { createClient as createSupabaseAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 
 type Role = 'ADMIN' | 'USER'
+export type ActionResult = { ok: true } | { ok: false; error: string }
 
 function getAdminClient() {
   return createSupabaseAdmin(
@@ -12,80 +13,94 @@ function getAdminClient() {
   )
 }
 
-async function assertAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Não autenticado.')
+async function getAdminOrError(): Promise<{ admin: ReturnType<typeof getAdminClient> } | { ok: false; error: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: 'Não autenticado.' }
 
-  const admin = getAdminClient()
-  const { data: profile, error } = await admin
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+    const admin = getAdminClient()
+    const { data: profile, error } = await admin
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
 
-  if (error) throw new Error(`Erro ao verificar permissão: ${error.message}`)
-  if (profile?.role !== 'ADMIN') throw new Error('Acesso negado.')
-}
+    if (error) return { ok: false, error: `Erro ao verificar permissão: ${error.message}` }
+    if (profile?.role !== 'ADMIN') return { ok: false, error: 'Acesso negado.' }
 
-export async function createUser(formData: FormData) {
-  await assertAdmin()
-
-  const email = formData.get('email') as string
-  const name = formData.get('name') as string
-  const password = formData.get('password') as string
-  const role = (formData.get('role') as Role) ?? 'USER'
-
-  const admin = getAdminClient()
-
-  const { data, error } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  })
-
-  if (error) throw new Error(`Erro ao criar auth: ${error.message}`)
-
-  const { error: profileError } = await admin
-    .from('profiles')
-    .insert({ id: data.user.id, email, name, role, active: true })
-
-  if (profileError) throw new Error(`Erro ao criar perfil: ${profileError.message}`)
-}
-
-export async function updateUser(userId: string, data: { name?: string; email?: string }) {
-  await assertAdmin()
-  const admin = getAdminClient()
-
-  const { error } = await admin.from('profiles').update(data).eq('id', userId)
-  if (error) throw new Error(error.message)
-
-  if (data.email) {
-    await admin.auth.admin.updateUserById(userId, { email: data.email })
+    return { admin }
+  } catch (e) {
+    return { ok: false, error: String(e) }
   }
 }
 
-export async function updateUserRole(userId: string, role: Role) {
-  await assertAdmin()
-  const admin = getAdminClient()
-  const { error } = await admin.from('profiles').update({ role }).eq('id', userId)
-  if (error) throw new Error(error.message)
+export async function createUser(formData: FormData): Promise<ActionResult> {
+  const auth = await getAdminOrError()
+  if ('ok' in auth) return auth
+
+  const email    = formData.get('email')    as string
+  const name     = formData.get('name')     as string
+  const password = formData.get('password') as string
+  const role     = (formData.get('role') as Role) ?? 'USER'
+
+  const { data, error } = await auth.admin.auth.admin.createUser({
+    email, password, email_confirm: true,
+  })
+  if (error) return { ok: false, error: `Erro ao criar usuário: ${error.message}` }
+
+  const { error: profileError } = await auth.admin
+    .from('profiles')
+    .insert({ id: data.user.id, email, name, role, active: true })
+
+  if (profileError) return { ok: false, error: `Erro ao criar perfil: ${profileError.message}` }
+
+  return { ok: true }
 }
 
-export async function toggleUserActive(userId: string, active: boolean) {
-  await assertAdmin()
-  const admin = getAdminClient()
+export async function updateUser(userId: string, data: { name?: string; email?: string }): Promise<ActionResult> {
+  const auth = await getAdminOrError()
+  if ('ok' in auth) return auth
 
-  await admin.from('profiles').update({ active }).eq('id', userId)
-  await admin.auth.admin.updateUserById(userId, {
+  const { error } = await auth.admin.from('profiles').update(data).eq('id', userId)
+  if (error) return { ok: false, error: error.message }
+
+  if (data.email) {
+    const { error: authError } = await auth.admin.auth.admin.updateUserById(userId, { email: data.email })
+    if (authError) return { ok: false, error: authError.message }
+  }
+
+  return { ok: true }
+}
+
+export async function updateUserRole(userId: string, role: Role): Promise<ActionResult> {
+  const auth = await getAdminOrError()
+  if ('ok' in auth) return auth
+
+  const { error } = await auth.admin.from('profiles').update({ role }).eq('id', userId)
+  if (error) return { ok: false, error: error.message }
+
+  return { ok: true }
+}
+
+export async function toggleUserActive(userId: string, active: boolean): Promise<ActionResult> {
+  const auth = await getAdminOrError()
+  if ('ok' in auth) return auth
+
+  await auth.admin.from('profiles').update({ active }).eq('id', userId)
+  await auth.admin.auth.admin.updateUserById(userId, {
     ban_duration: active ? 'none' : '87600h',
   })
+
+  return { ok: true }
 }
 
-export async function deleteUser(userId: string) {
-  await assertAdmin()
-  const admin = getAdminClient()
+export async function deleteUser(userId: string): Promise<ActionResult> {
+  const auth = await getAdminOrError()
+  if ('ok' in auth) return auth
 
-  await admin.auth.admin.deleteUser(userId)
-  await admin.from('profiles').delete().eq('id', userId)
+  await auth.admin.auth.admin.deleteUser(userId)
+  await auth.admin.from('profiles').delete().eq('id', userId)
+
+  return { ok: true }
 }

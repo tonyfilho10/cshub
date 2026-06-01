@@ -5,6 +5,7 @@ import { Profile } from '@/lib/generated/prisma/client'
 
 type Role = 'ADMIN' | 'USER'
 import { createUser, updateUser, updateUserRole, toggleUserActive, deleteUser } from '@/lib/actions/users'
+import type { ActionResult } from '@/lib/actions/users'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,19 +27,22 @@ export default function UsersClient({ profiles: initial, currentUserId }: Props)
   const [editUser, setEditUser] = useState<Profile | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  function handle(result: ActionResult, onSuccess: () => void, fallback = 'Erro desconhecido.') {
+    if (!result.ok) { toast.error(result.error ?? fallback); return }
+    onSuccess()
+  }
+
   /* ── Create ─────────────────────────────────────────────── */
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     startTransition(async () => {
-      try {
-        await createUser(fd)
+      const result = await createUser(fd)
+      handle(result, () => {
         toast.success('Usuário criado!')
         setCreateOpen(false)
         window.location.reload()
-      } catch (err: unknown) {
-        toast.error(err instanceof Error ? err.message : 'Erro ao criar usuário.')
-      }
+      })
     })
   }
 
@@ -51,47 +55,45 @@ export default function UsersClient({ profiles: initial, currentUserId }: Props)
     const email = fd.get('email') as string
 
     startTransition(async () => {
-      try {
-        await updateUser(editUser.id, { name, email })
+      const result = await updateUser(editUser.id, { name, email })
+      handle(result, () => {
         setProfiles(p => p.map(u => u.id === editUser.id ? { ...u, name, email } : u))
         toast.success('Usuário atualizado!')
         setEditUser(null)
-      } catch {
-        toast.error('Erro ao atualizar usuário.')
-      }
+      })
     })
   }
 
   /* ── Role ────────────────────────────────────────────────── */
   async function handleRole(userId: string, role: Role) {
     startTransition(async () => {
-      try {
-        await updateUserRole(userId, role)
+      const result = await updateUserRole(userId, role)
+      handle(result, () => {
         setProfiles(p => p.map(u => u.id === userId ? { ...u, role } : u))
         toast.success('Permissão atualizada.')
-      } catch { toast.error('Erro ao atualizar permissão.') }
+      })
     })
   }
 
   /* ── Toggle active ───────────────────────────────────────── */
   async function handleToggle(userId: string, active: boolean) {
     startTransition(async () => {
-      try {
-        await toggleUserActive(userId, active)
+      const result = await toggleUserActive(userId, active)
+      handle(result, () => {
         setProfiles(p => p.map(u => u.id === userId ? { ...u, active } : u))
         toast.success(active ? 'Usuário reativado.' : 'Usuário desativado.')
-      } catch { toast.error('Erro ao alterar status.') }
+      })
     })
   }
 
   /* ── Delete ──────────────────────────────────────────────── */
   async function handleDelete(userId: string) {
     startTransition(async () => {
-      try {
-        await deleteUser(userId)
+      const result = await deleteUser(userId)
+      handle(result, () => {
         setProfiles(p => p.filter(u => u.id !== userId))
         toast.success('Usuário excluído.')
-      } catch { toast.error('Erro ao excluir usuário.') }
+      })
     })
   }
 
