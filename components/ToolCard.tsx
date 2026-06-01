@@ -1,6 +1,5 @@
 import { Tool } from '@/lib/types'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { ExternalLink } from 'lucide-react'
 
 export default function ToolCard({ tool }: { tool: Tool }) {
@@ -23,17 +22,13 @@ export default function ToolCard({ tool }: { tool: Tool }) {
             {tool.name}
           </h3>
         </CardHeader>
-        <CardContent className="pt-0">
-          {tool.description && (
-            <p className="text-muted-foreground text-xs leading-relaxed mb-3">
+        {tool.description && (
+          <CardContent className="pt-0">
+            <p className="text-muted-foreground text-xs leading-relaxed">
               {tool.description}
             </p>
-          )}
-          <Badge variant="outline" className="text-xs gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-            {tool.user_count} {tool.user_count === 1 ? 'usuário' : 'usuários'}
-          </Badge>
-        </CardContent>
+          </CardContent>
+        )}
       </Card>
     </a>
   )
