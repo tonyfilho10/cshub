@@ -8,7 +8,8 @@ import { PrismaClient, Role } from '@/lib/generated/prisma/client'
 import { revalidatePath } from 'next/cache'
 
 function getPrisma() {
-  const pool = new Pool({ connectionString: process.env.DIRECT_URL })
+  const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL
+  const pool = new Pool({ connectionString })
   const adapter = new PrismaPg(pool)
   return new PrismaClient({ adapter })
 }
