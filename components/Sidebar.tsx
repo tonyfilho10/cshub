@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { LogOut, Menu, Moon, Sun, X, UserRound, Users, ChevronLeft, LayoutGrid, ShoppingBag, Scale, Receipt, DollarSign, BookOpen, Users2, HeadphonesIcon, Home } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { User } from '@supabase/supabase-js'
 
 const DEPARTMENTS = [
@@ -123,23 +124,23 @@ export default function Sidebar() {
             const href = dept.slug ? `/dashboard/${dept.slug}` : '/dashboard'
             const active = isActive(dept.slug)
             const Icon = dept.icon
+            const linkClass = `
+              flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm font-medium transition-colors
+              ${collapsed ? 'justify-center' : ''}
+              ${active
+                ? 'bg-[#F97316] text-white hover:bg-[#EA580C]'
+                : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)] hover:text-[var(--sidebar-text-hover)]'}
+            `
             return (
-              <Link
-                key={dept.slug}
-                href={href}
-                onClick={() => setMenuOpen(false)}
-                title={collapsed ? dept.label : undefined}
-                className={`
-                  flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm font-medium transition-colors
-                  ${collapsed ? 'justify-center' : ''}
-                  ${active
-                    ? 'bg-[#F97316] text-white hover:bg-[#EA580C]'
-                    : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)] hover:text-[var(--sidebar-text-hover)]'}
-                `}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                {!collapsed && <span>{dept.label}</span>}
-              </Link>
+              <Tooltip key={dept.slug}>
+                <TooltipTrigger render={
+                  <Link href={href} onClick={() => setMenuOpen(false)} className={linkClass}>
+                    <Icon className="w-4 h-4 shrink-0" />
+                    {!collapsed && <span>{dept.label}</span>}
+                  </Link>
+                } />
+                {collapsed && <TooltipContent side="right">{dept.label}</TooltipContent>}
+              </Tooltip>
             )
           })}
         </nav>
@@ -149,86 +150,103 @@ export default function Sidebar() {
         {/* Usuários (admin) */}
         {isAdmin && (
           <div className="px-2 pt-2">
-            <Link
-              href="/dashboard/usuarios"
-              onClick={() => setMenuOpen(false)}
-              title={collapsed ? 'Usuários' : undefined}
-              className={`
-                flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm font-medium transition-colors
-                ${collapsed ? 'justify-center' : ''}
-                ${isActive('usuarios')
-                  ? 'bg-[#F97316] text-white hover:bg-[#EA580C]'
-                  : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)] hover:text-[var(--sidebar-text-hover)]'}
-              `}
-            >
-              <Users className="w-4 h-4 shrink-0" />
-              {!collapsed && <span>Usuários</span>}
-            </Link>
+            <Tooltip>
+              <TooltipTrigger render={
+                <Link
+                  href="/dashboard/usuarios"
+                  onClick={() => setMenuOpen(false)}
+                  className={`
+                    flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm font-medium transition-colors
+                    ${collapsed ? 'justify-center' : ''}
+                    ${isActive('usuarios')
+                      ? 'bg-[#F97316] text-white hover:bg-[#EA580C]'
+                      : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)] hover:text-[var(--sidebar-text-hover)]'}
+                  `}
+                >
+                  <Users className="w-4 h-4 shrink-0" />
+                  {!collapsed && <span>Usuários</span>}
+                </Link>
+              } />
+              {collapsed && <TooltipContent side="right">Usuários</TooltipContent>}
+            </Tooltip>
           </div>
         )}
 
         {/* Perfil */}
         <div className="px-2 pt-2 pb-1">
-          <Link
-            href="/dashboard/perfil"
-            onClick={() => setMenuOpen(false)}
-            title={collapsed ? user?.email?.split('@')[0] : undefined}
-            className={`
-              flex items-center gap-3 w-full px-2 py-2 rounded-md transition-colors
-              ${collapsed ? 'justify-center' : ''}
-              ${isActive('perfil')
-                ? 'bg-[#F97316] text-white hover:bg-[#EA580C]'
-                : 'hover:bg-[var(--sidebar-hover-bg)]'}
-            `}
-          >
-            <Avatar className="w-6 h-6 shrink-0">
-              <AvatarImage src={user?.user_metadata?.avatar_url} />
-              <AvatarFallback className="text-xs bg-[#F97316] text-white">
-                {getInitials(user?.email ?? '')}
-              </AvatarFallback>
-            </Avatar>
-            {!collapsed && (
-              <div className="overflow-hidden flex-1">
-                <p className={`text-xs font-medium truncate ${isActive('perfil') ? 'text-white' : 'text-[var(--sidebar-text-hover)]'}`}>
-                  {user?.email?.split('@')[0]}
-                </p>
-                <p className={`text-xs truncate ${isActive('perfil') ? 'text-white/80' : 'text-[var(--sidebar-text)]'}`}>
-                  Meu perfil
-                </p>
-              </div>
-            )}
-            {!collapsed && (
-              <UserRound className={`w-3.5 h-3.5 shrink-0 ${isActive('perfil') ? 'text-white' : 'text-[var(--sidebar-text)]'}`} />
-            )}
-          </Link>
+          <Tooltip>
+            <TooltipTrigger render={
+              <Link
+                href="/dashboard/perfil"
+                onClick={() => setMenuOpen(false)}
+                className={`
+                  flex items-center gap-3 w-full px-2 py-2 rounded-md transition-colors
+                  ${collapsed ? 'justify-center' : ''}
+                  ${isActive('perfil')
+                    ? 'bg-[#F97316] text-white hover:bg-[#EA580C]'
+                    : 'hover:bg-[var(--sidebar-hover-bg)]'}
+                `}
+              >
+                <Avatar className="w-6 h-6 shrink-0">
+                  <AvatarImage src={user?.user_metadata?.avatar_url} />
+                  <AvatarFallback className="text-xs bg-[#F97316] text-white">
+                    {getInitials(user?.email ?? '')}
+                  </AvatarFallback>
+                </Avatar>
+                {!collapsed && (
+                  <div className="overflow-hidden flex-1">
+                    <p className={`text-xs font-medium truncate ${isActive('perfil') ? 'text-white' : 'text-[var(--sidebar-text-hover)]'}`}>
+                      {user?.email?.split('@')[0]}
+                    </p>
+                    <p className={`text-xs truncate ${isActive('perfil') ? 'text-white/80' : 'text-[var(--sidebar-text)]'}`}>
+                      Meu perfil
+                    </p>
+                  </div>
+                )}
+                {!collapsed && (
+                  <UserRound className={`w-3.5 h-3.5 shrink-0 ${isActive('perfil') ? 'text-white' : 'text-[var(--sidebar-text)]'}`} />
+                )}
+              </Link>
+            } />
+            {collapsed && <TooltipContent side="right">{user?.email?.split('@')[0] ?? 'Meu perfil'}</TooltipContent>}
+          </Tooltip>
         </div>
 
         {/* Tema + Logout */}
         <div className="px-2 pb-4 space-y-1">
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            title={collapsed ? (theme === 'dark' ? 'Modo Claro' : 'Modo Escuro') : undefined}
-            className={`
-              flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm
-              text-[var(--sidebar-text)] hover:text-[var(--sidebar-text-hover)] hover:bg-[var(--sidebar-hover-bg)] transition-colors
-              ${collapsed ? 'justify-center' : ''}
-            `}
-          >
-            {theme === 'dark' ? <Sun className="w-4 h-4 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
-            {!collapsed && <span>{theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}</span>}
-          </button>
-          <button
-            onClick={handleLogout}
-            title={collapsed ? 'Sair' : undefined}
-            className={`
-              flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm
-              text-[var(--sidebar-text)] hover:text-[var(--sidebar-text-hover)] hover:bg-[var(--sidebar-hover-bg)] transition-colors
-              ${collapsed ? 'justify-center' : ''}
-            `}
-          >
-            <LogOut className="w-4 h-4 shrink-0" />
-            {!collapsed && <span>Sair</span>}
-          </button>
+          <Tooltip>
+            <TooltipTrigger render={
+              <button
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className={`
+                  flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm
+                  text-[var(--sidebar-text)] hover:text-[var(--sidebar-text-hover)] hover:bg-[var(--sidebar-hover-bg)] transition-colors
+                  ${collapsed ? 'justify-center' : ''}
+                `}
+              >
+                {theme === 'dark' ? <Sun className="w-4 h-4 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
+                {!collapsed && <span>{theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}</span>}
+              </button>
+            } />
+            {collapsed && <TooltipContent side="right">{theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}</TooltipContent>}
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger render={
+              <button
+                onClick={handleLogout}
+                className={`
+                  flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm
+                  text-[var(--sidebar-text)] hover:text-[var(--sidebar-text-hover)] hover:bg-[var(--sidebar-hover-bg)] transition-colors
+                  ${collapsed ? 'justify-center' : ''}
+                `}
+              >
+                <LogOut className="w-4 h-4 shrink-0" />
+                {!collapsed && <span>Sair</span>}
+              </button>
+            } />
+            {collapsed && <TooltipContent side="right">Sair</TooltipContent>}
+          </Tooltip>
         </div>
       </aside>
     </>
