@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Profile, Role } from '@/lib/generated/prisma/client'
+import { Profile } from '@/lib/generated/prisma/client'
+
+type Role = 'ADMIN' | 'USER'
 import { createUser, updateUser, updateUserRole, toggleUserActive, deleteUser } from '@/lib/actions/users'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'

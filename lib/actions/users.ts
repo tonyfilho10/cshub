@@ -2,7 +2,6 @@
 
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
 
 type Role = 'ADMIN' | 'USER'
 
@@ -19,12 +18,13 @@ async function assertAdmin() {
   if (!user) throw new Error('Não autenticado.')
 
   const admin = getAdminClient()
-  const { data: profile } = await admin
+  const { data: profile, error } = await admin
     .from('profiles')
     .select('role')
     .eq('id', user.id)
     .single()
 
+  if (error) throw new Error(`Erro ao verificar permissão: ${error.message}`)
   if (profile?.role !== 'ADMIN') throw new Error('Acesso negado.')
 }
 
@@ -44,42 +44,32 @@ export async function createUser(formData: FormData) {
     email_confirm: true,
   })
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(`Erro ao criar auth: ${error.message}`)
 
   const { error: profileError } = await admin
     .from('profiles')
     .insert({ id: data.user.id, email, name, role, active: true })
 
-  if (profileError) throw new Error(profileError.message)
-
-  revalidatePath('/dashboard/usuarios')
+  if (profileError) throw new Error(`Erro ao criar perfil: ${profileError.message}`)
 }
 
 export async function updateUser(userId: string, data: { name?: string; email?: string }) {
   await assertAdmin()
   const admin = getAdminClient()
 
-  const { error } = await admin
-    .from('profiles')
-    .update(data)
-    .eq('id', userId)
-
+  const { error } = await admin.from('profiles').update(data).eq('id', userId)
   if (error) throw new Error(error.message)
 
   if (data.email) {
     await admin.auth.admin.updateUserById(userId, { email: data.email })
   }
-
-  revalidatePath('/dashboard/usuarios')
 }
 
 export async function updateUserRole(userId: string, role: Role) {
   await assertAdmin()
   const admin = getAdminClient()
-
-  await admin.from('profiles').update({ role }).eq('id', userId)
-
-  revalidatePath('/dashboard/usuarios')
+  const { error } = await admin.from('profiles').update({ role }).eq('id', userId)
+  if (error) throw new Error(error.message)
 }
 
 export async function toggleUserActive(userId: string, active: boolean) {
@@ -87,12 +77,9 @@ export async function toggleUserActive(userId: string, active: boolean) {
   const admin = getAdminClient()
 
   await admin.from('profiles').update({ active }).eq('id', userId)
-
   await admin.auth.admin.updateUserById(userId, {
     ban_duration: active ? 'none' : '87600h',
   })
-
-  revalidatePath('/dashboard/usuarios')
 }
 
 export async function deleteUser(userId: string) {
@@ -101,6 +88,4 @@ export async function deleteUser(userId: string) {
 
   await admin.auth.admin.deleteUser(userId)
   await admin.from('profiles').delete().eq('id', userId)
-
-  revalidatePath('/dashboard/usuarios')
 }
