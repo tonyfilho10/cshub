@@ -2,17 +2,9 @@
 
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
-import { Pool } from 'pg'
-import { PrismaPg } from '@prisma/adapter-pg'
-import { PrismaClient, Role } from '@/lib/generated/prisma/client'
 import { revalidatePath } from 'next/cache'
 
-function getPrisma() {
-  const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL
-  const pool = new Pool({ connectionString })
-  const adapter = new PrismaPg(pool)
-  return new PrismaClient({ adapter })
-}
+type Role = 'ADMIN' | 'USER'
 
 function getAdminClient() {
   return createSupabaseAdmin(
@@ -36,14 +28,6 @@ async function assertAdmin() {
   if (profile?.role !== 'ADMIN') throw new Error('Acesso negado.')
 }
 
-export async function getUsers() {
-  await assertAdmin()
-  const prisma = getPrisma()
-  const profiles = await prisma.profile.findMany({ orderBy: { createdAt: 'asc' } })
-  await prisma.$disconnect()
-  return profiles
-}
-
 export async function createUser(formData: FormData) {
   await assertAdmin()
 
@@ -53,6 +37,7 @@ export async function createUser(formData: FormData) {
   const role = (formData.get('role') as Role) ?? 'USER'
 
   const admin = getAdminClient()
+
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password,
@@ -61,62 +46,61 @@ export async function createUser(formData: FormData) {
 
   if (error) throw new Error(error.message)
 
-  const prisma = getPrisma()
-  await prisma.profile.create({
-    data: { id: data.user.id, email, name, role, active: true },
-  })
-  await prisma.$disconnect()
+  const { error: profileError } = await admin
+    .from('profiles')
+    .insert({ id: data.user.id, email, name, role, active: true })
 
-  revalidatePath('/dashboard/usuarios')
-}
+  if (profileError) throw new Error(profileError.message)
 
-export async function updateUserRole(userId: string, role: Role) {
-  await assertAdmin()
-  const prisma = getPrisma()
-  await prisma.profile.update({ where: { id: userId }, data: { role } })
-  await prisma.$disconnect()
   revalidatePath('/dashboard/usuarios')
 }
 
 export async function updateUser(userId: string, data: { name?: string; email?: string }) {
   await assertAdmin()
-  const prisma = getPrisma()
-  await prisma.profile.update({ where: { id: userId }, data })
-  await prisma.$disconnect()
+  const admin = getAdminClient()
+
+  const { error } = await admin
+    .from('profiles')
+    .update(data)
+    .eq('id', userId)
+
+  if (error) throw new Error(error.message)
 
   if (data.email) {
-    const admin = getAdminClient()
     await admin.auth.admin.updateUserById(userId, { email: data.email })
   }
 
   revalidatePath('/dashboard/usuarios')
 }
 
-export async function deleteUser(userId: string) {
+export async function updateUserRole(userId: string, role: Role) {
   await assertAdmin()
-
   const admin = getAdminClient()
-  await admin.auth.admin.deleteUser(userId)
 
-  const prisma = getPrisma()
-  await prisma.profile.delete({ where: { id: userId } })
-  await prisma.$disconnect()
+  await admin.from('profiles').update({ role }).eq('id', userId)
 
   revalidatePath('/dashboard/usuarios')
 }
 
 export async function toggleUserActive(userId: string, active: boolean) {
   await assertAdmin()
-  const prisma = getPrisma()
-  await prisma.profile.update({ where: { id: userId }, data: { active } })
-  await prisma.$disconnect()
-
   const admin = getAdminClient()
-  if (active) {
-    await admin.auth.admin.updateUserById(userId, { ban_duration: 'none' })
-  } else {
-    await admin.auth.admin.updateUserById(userId, { ban_duration: '87600h' })
-  }
+
+  await admin.from('profiles').update({ active }).eq('id', userId)
+
+  await admin.auth.admin.updateUserById(userId, {
+    ban_duration: active ? 'none' : '87600h',
+  })
+
+  revalidatePath('/dashboard/usuarios')
+}
+
+export async function deleteUser(userId: string) {
+  await assertAdmin()
+  const admin = getAdminClient()
+
+  await admin.auth.admin.deleteUser(userId)
+  await admin.from('profiles').delete().eq('id', userId)
 
   revalidatePath('/dashboard/usuarios')
 }
