@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 
 type Props = {
   label: string
-  children: React.ReactNode
+  children: React.ReactElement<React.HTMLAttributes<HTMLElement>>
   enabled?: boolean
   delay?: number
 }
@@ -13,20 +13,20 @@ type Props = {
 export function SidebarTooltip({ label, children, enabled = true, delay = 400 }: Props) {
   const [visible, setVisible] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0 })
-  const ref = useRef<HTMLDivElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const elRef = useRef<HTMLElement | null>(null)
 
-  function show() {
-    if (!enabled || !ref.current) return
-    const rect = ref.current.getBoundingClientRect()
+  const show = useCallback(() => {
+    if (!enabled || !elRef.current) return
+    const rect = elRef.current.getBoundingClientRect()
     setPos({ top: rect.top + rect.height / 2, left: rect.right + 10 })
     timer.current = setTimeout(() => setVisible(true), delay)
-  }
+  }, [enabled, delay])
 
-  function hide() {
+  const hide = useCallback(() => {
     if (timer.current) clearTimeout(timer.current)
     setVisible(false)
-  }
+  }, [])
 
   useEffect(() => {
     if (!enabled) {
@@ -37,15 +37,35 @@ export function SidebarTooltip({ label, children, enabled = true, delay = 400 }:
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
 
+  const child = children as React.ReactElement<React.HTMLAttributes<HTMLElement> & { ref?: React.Ref<HTMLElement> }>
+
+  const cloned = {
+    ...child,
+    props: {
+      ...child.props,
+      ref: (node: HTMLElement | null) => {
+        elRef.current = node
+        const originalRef = (child as unknown as { ref?: React.Ref<HTMLElement> }).ref
+        if (typeof originalRef === 'function') originalRef(node)
+      },
+      onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
+        show()
+        child.props.onMouseEnter?.(e)
+      },
+      onMouseLeave: (e: React.MouseEvent<HTMLElement>) => {
+        hide()
+        child.props.onMouseLeave?.(e)
+      },
+      onMouseDown: (e: React.MouseEvent<HTMLElement>) => {
+        hide()
+        child.props.onMouseDown?.(e)
+      },
+    },
+  }
+
   return (
-    <div
-      ref={ref}
-      onMouseEnter={show}
-      onMouseLeave={hide}
-      onMouseDown={hide}
-      className="contents"
-    >
-      {children}
+    <>
+      {cloned}
       {visible && enabled && typeof window !== 'undefined' && createPortal(
         <div
           style={{ top: pos.top, left: pos.left, transform: 'translateY(-50%)' }}
@@ -55,6 +75,6 @@ export function SidebarTooltip({ label, children, enabled = true, delay = 400 }:
         </div>,
         document.body
       )}
-    </div>
+    </>
   )
 }
