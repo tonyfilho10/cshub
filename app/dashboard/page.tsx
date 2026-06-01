@@ -14,12 +14,9 @@ export default async function DashboardPage() {
     .order('name')
 
   // Deduplica por URL — exibe cada ferramenta apenas uma vez na visão geral
-  const unique = tools
-    ? Object.values(
-        tools.reduce((acc: Record<string, Tool>, tool: Tool) => {
-          if (!acc[tool.url]) acc[tool.url] = tool
-          return acc
-        }, {})
+  const unique: Tool[] = tools
+    ? Array.from(
+        new Map((tools as Tool[]).map(t => [t.url, t])).values()
       )
     : []
 
