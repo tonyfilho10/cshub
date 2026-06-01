@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Department {
+  id    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name  String
+  slug  String @unique
+  order Int    @default(0)
+  tools Tool[]
+
+  @@map("departments")
+}
+
+model Tool {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  departmentId String     @map("department_id") @db.Uuid
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  url          String
+  icon         String?
+  active       Boolean    @default(true)
+  userCount    Int        @default(0) @map("user_count")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@map("tools")
+}
