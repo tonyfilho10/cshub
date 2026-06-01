@@ -42,7 +42,7 @@ export default async function DepartmentPage({
 
   return (
     <div>
-      <h2 className="text-xl font-semibold text-white mb-6">{label}</h2>
+      <h2 className="text-xl font-semibold text-foreground mb-6">{label}</h2>
       {tools && tools.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {tools.map((tool: Tool) => (
@@ -50,7 +50,7 @@ export default async function DepartmentPage({
           ))}
         </div>
       ) : (
-        <p className="text-slate-400 text-sm">Nenhuma ferramenta disponível neste departamento.</p>
+        <p className="text-muted-foreground text-sm">Nenhuma ferramenta disponível neste departamento.</p>
       )}
     </div>
   )

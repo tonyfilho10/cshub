@@ -74,6 +74,33 @@ export async function updateUserRole(userId: string, role: Role) {
   revalidatePath('/dashboard/usuarios')
 }
 
+export async function updateUser(userId: string, data: { name?: string; email?: string }) {
+  await assertAdmin()
+  const prisma = getPrisma()
+  await prisma.profile.update({ where: { id: userId }, data })
+  await prisma.$disconnect()
+
+  if (data.email) {
+    const admin = getAdminClient()
+    await admin.auth.admin.updateUserById(userId, { email: data.email })
+  }
+
+  revalidatePath('/dashboard/usuarios')
+}
+
+export async function deleteUser(userId: string) {
+  await assertAdmin()
+
+  const admin = getAdminClient()
+  await admin.auth.admin.deleteUser(userId)
+
+  const prisma = getPrisma()
+  await prisma.profile.delete({ where: { id: userId } })
+  await prisma.$disconnect()
+
+  revalidatePath('/dashboard/usuarios')
+}
+
 export async function toggleUserActive(userId: string, active: boolean) {
   await assertAdmin()
   const prisma = getPrisma()
