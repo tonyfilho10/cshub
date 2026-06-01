@@ -7,7 +7,7 @@ import { useTheme } from 'next-themes'
 import { createClient } from '@/lib/supabase/client'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { LogOut, Menu, Moon, Sun, X, UserRound } from 'lucide-react'
+import { LogOut, Menu, Moon, Sun, X, UserRound, Users } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 
 const DEPARTMENTS = [
@@ -28,10 +28,16 @@ export default function Sidebar() {
   const { theme, setTheme } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
   const [user, setUser] = useState<User | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => setUser(data.user))
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user)
+      if (data.user) {
+        fetch('/api/me').then(r => r.json()).then(d => setIsAdmin(d.role === 'ADMIN'))
+      }
+    })
   }, [])
 
   async function handleLogout() {
@@ -42,7 +48,6 @@ export default function Sidebar() {
   }
 
   function isActive(slug: string) {
-    if (slug === 'perfil') return pathname === '/dashboard/perfil'
     if (!slug) return pathname === '/dashboard'
     return pathname === `/dashboard/${slug}`
   }
@@ -107,6 +112,23 @@ export default function Sidebar() {
         </nav>
 
         <Separator className="bg-[var(--sidebar-border)]" />
+
+        {/* Gestão de usuários — só admins */}
+        {isAdmin && (
+          <Link
+            href="/dashboard/usuarios"
+            onClick={() => setMenuOpen(false)}
+            className={`
+              flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm font-medium transition-colors
+              ${isActive('usuarios')
+                ? 'bg-[#F97316] text-white hover:bg-[#EA580C]'
+                : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)] hover:text-[var(--sidebar-text-hover)]'}
+            `}
+          >
+            <Users className="w-4 h-4" />
+            Usuários
+          </Link>
+        )}
 
         {/* Perfil do usuário */}
         <div className="px-3 pt-3 pb-1">

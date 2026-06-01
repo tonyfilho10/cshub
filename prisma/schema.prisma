@@ -7,6 +7,22 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  ADMIN
+  USER
+}
+
+model Profile {
+  id        String   @id @db.Uuid
+  email     String   @unique
+  name      String?
+  role      Role     @default(USER)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("profiles")
+}
+
 model Department {
   id    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name  String
