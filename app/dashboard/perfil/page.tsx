@@ -13,7 +13,6 @@ import { Camera, Loader2 } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 
 export default function PerfilPage() {
-  const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [user, setUser] = useState<User | null>(null)
@@ -26,6 +25,7 @@ export default function PerfilPage() {
   const [changingPassword, setChangingPassword] = useState(false)
 
   useEffect(() => {
+    const supabase = createClient()
     async function loadUser() {
       const { data: { user } } = await supabase.auth.getUser()
       setUser(user)
@@ -34,7 +34,7 @@ export default function PerfilPage() {
       }
     }
     loadUser()
-  }, [supabase])
+  }, [])
 
   function getInitials(email: string) {
     return email?.slice(0, 2).toUpperCase() ?? 'U'
@@ -44,7 +44,7 @@ export default function PerfilPage() {
     const file = e.target.files?.[0]
     if (!file || !user) return
 
-    const maxSize = 2 * 1024 * 1024 // 2MB
+    const maxSize = 2 * 1024 * 1024
     if (file.size > maxSize) {
       toast.error('A imagem deve ter no máximo 2MB.')
       return
@@ -52,6 +52,7 @@ export default function PerfilPage() {
 
     setUploadingAvatar(true)
     try {
+      const supabase = createClient()
       const ext = file.name.split('.').pop()
       const path = `${user.id}/avatar.${ext}`
 
@@ -94,6 +95,8 @@ export default function PerfilPage() {
 
     setChangingPassword(true)
     try {
+      const supabase = createClient()
+
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: user?.email ?? '',
         password: currentPassword,
@@ -126,7 +129,6 @@ export default function PerfilPage() {
         <p className="text-muted-foreground text-sm mt-1">Gerencie sua foto e senha de acesso.</p>
       </div>
 
-      {/* Foto de Perfil */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Foto de Perfil</CardTitle>
@@ -171,7 +173,6 @@ export default function PerfilPage() {
 
       <Separator />
 
-      {/* Alterar Senha */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Alterar Senha</CardTitle>
