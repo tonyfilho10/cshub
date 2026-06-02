@@ -31,10 +31,10 @@ export async function POST(req: NextRequest) {
     const path = `${user.id}/avatar.${ext}`
     const buffer = Buffer.from(await file.arrayBuffer())
 
-    // Upload via service role — sem restrições de RLS
+    // Upload via service role JWT — bypassa RLS no Storage
     const admin = createAdmin(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SECRET_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
     const { error: uploadError } = await admin.storage
