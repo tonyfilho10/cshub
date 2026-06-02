@@ -167,7 +167,7 @@ export default function UsersClient() {
               <SelectValue placeholder="Todos os departamentos" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os departamentos</SelectItem>
+              <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="none">Sem departamento</SelectItem>
               {departments.map(d => (
                 <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
