@@ -73,8 +73,9 @@ export default function PerfilPage() {
 
       setAvatarUrl(publicUrl)
       toast.success('Foto de perfil atualizada!')
-    } catch (err) {
-      toast.error('Erro ao enviar foto. Tente novamente.')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : (err as { message?: string })?.message ?? String(err)
+      toast.error(`Erro: ${msg}`)
       console.error(err)
     } finally {
       setUploadingAvatar(false)
