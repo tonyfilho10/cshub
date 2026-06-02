@@ -34,14 +34,17 @@ async function authAdmin(method: string, path: string, body?: object) {
 
 async function assertAdmin(): Promise<string | null> {
   try {
+    // Usa @supabase/ssr para obter o usuário — funciona com a nova chave ECC
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return 'Não autenticado.'
+    const { data: { user }, error: authErr } = await supabase.auth.getUser()
+    if (authErr || !user) return 'Não autenticado.'
 
+    // Usa sb_secret_ para verificar o role no banco (bypassa RLS)
     const db = getDb()
-    const { data: profile } = await db
+    const { data: profile, error: profileErr } = await db
       .from('profiles').select('role').eq('id', user.id).single()
 
+    if (profileErr) return `Perfil não encontrado: ${profileErr.message}`
     if (profile?.role !== 'ADMIN') return 'Acesso negado.'
     return null
   } catch (e) {

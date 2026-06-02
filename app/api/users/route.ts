@@ -1,5 +1,6 @@
+import { createClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,30 +11,16 @@ function getDb() {
   )
 }
 
-function getUserIdFromCookies(req: NextRequest): string | null {
+export async function GET() {
   try {
-    const token = req.cookies.getAll().find(
-      c => c.name.includes('auth-token') && !c.name.includes('code')
-    )
-    if (!token) return null
-    const payload = token.value.split('.')[1]
-    if (!payload) return null
-    const decoded = JSON.parse(
-      Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString()
-    )
-    return decoded.sub ?? null
-  } catch { return null }
-}
-
-export async function GET(req: NextRequest) {
-  try {
-    const userId = getUserIdFromCookies(req)
-    if (!userId) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
 
     const db = getDb()
 
     const { data: me, error: meErr } = await db
-      .from('profiles').select('role').eq('id', userId).single()
+      .from('profiles').select('role').eq('id', user.id).single()
 
     if (meErr) return NextResponse.json({ error: `DB: ${meErr.message}` }, { status: 500 })
     if (me?.role !== 'ADMIN') return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
@@ -43,7 +30,7 @@ export async function GET(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    return NextResponse.json({ profiles, currentUserId: userId })
+    return NextResponse.json({ profiles, currentUserId: user.id })
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : String(e) },
