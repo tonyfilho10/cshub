@@ -1,44 +1,33 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function proxy(request: NextRequest) {
-  // Não interceptar server actions nem rotas de API internas
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-  if (pathname.startsWith('/api/') || request.method === 'POST') {
-    return NextResponse.next({ request })
+
+  // Deixa passar: assets estáticos, API routes e server actions (POST)
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api/') ||
+    request.method === 'POST'
+  ) {
+    return NextResponse.next()
   }
 
-  let supabaseResponse = NextResponse.next({ request })
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return request.cookies.getAll() },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
-
-  const { data: { user } } = await supabase.auth.getUser()
   const isAuthRoute = pathname.startsWith('/login')
 
-  if (!user && !isAuthRoute) {
+  // Detecta sessão pelo cookie do Supabase (sem chamada de rede)
+  const hasSession = request.cookies.getAll().some(
+    c => c.name.includes('auth-token') && c.value.length > 10
+  )
+
+  if (!hasSession && !isAuthRoute) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (user && isAuthRoute) {
+  if (hasSession && isAuthRoute) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  return supabaseResponse
+  return NextResponse.next()
 }
 
 export const config = {

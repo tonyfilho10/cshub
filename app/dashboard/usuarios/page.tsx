@@ -1,13 +1,6 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
 import UsersClient from './UsersClient'
 
-export const dynamic = 'force-dynamic'
-
-export default async function UsuariosPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
+// Auth já garantida pelo proxy — página só renderiza o client component
+export default function UsuariosPage() {
   return <UsersClient />
 }
