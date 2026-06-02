@@ -56,10 +56,11 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
   const err = await assertAdmin()
   if (err) return { ok: false, error: err }
 
-  const email    = formData.get('email')    as string
-  const name     = formData.get('name')     as string
-  const password = formData.get('password') as string
-  const role     = (formData.get('role') as Role) ?? 'USER'
+  const email        = formData.get('email')         as string
+  const name         = formData.get('name')          as string
+  const password     = formData.get('password')      as string
+  const role         = (formData.get('role') as Role) ?? 'USER'
+  const departmentId = (formData.get('department_id') as string) || null
 
   try {
     const authUser = await authAdmin('POST', '/users', {
@@ -71,7 +72,7 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
     const db = getDb()
     const { error: profileError } = await db
       .from('profiles')
-      .insert({ id: authUser.id, email, name, role, active: true })
+      .insert({ id: authUser.id, email, name, role, active: true, department_id: departmentId })
 
     if (profileError) return { ok: false, error: `Perfil: ${profileError.message}` }
     return { ok: true }
@@ -80,7 +81,7 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
   }
 }
 
-export async function updateUser(userId: string, data: { name?: string; email?: string }): Promise<ActionResult> {
+export async function updateUser(userId: string, data: { name?: string; email?: string; department_id?: string | null }): Promise<ActionResult> {
   const err = await assertAdmin()
   if (err) return { ok: false, error: err }
 

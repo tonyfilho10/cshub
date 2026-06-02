@@ -13,12 +13,13 @@ enum Role {
 }
 
 model Profile {
-  id        String   @id @db.Uuid
-  email     String   @unique
-  name      String?
-  role      Role     @default(USER)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
+  id           String   @id @db.Uuid
+  email        String   @unique
+  name         String?
+  role         Role     @default(USER)
+  active       Boolean  @default(true)
+  departmentId String?  @map("department_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
 
   @@map("profiles")
 }

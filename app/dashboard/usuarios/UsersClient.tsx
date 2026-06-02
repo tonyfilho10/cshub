@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition, useEffect, useMemo } from 'react'
 import { createUser, updateUser, updateUserRole, toggleUserActive, deleteUser } from '@/lib/actions/users'
 import type { ActionResult } from '@/lib/actions/users'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -14,60 +14,70 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
-import { Loader2, UserPlus, ShieldCheck, User, Pencil, Trash2, PowerOff, Power, RefreshCw } from 'lucide-react'
+import { Loader2, UserPlus, ShieldCheck, User, Pencil, Trash2, PowerOff, Power, RefreshCw, Search, X } from 'lucide-react'
 
 type Role = 'ADMIN' | 'USER'
+type Department = { id: string; name: string; slug: string }
 type Profile = {
-  id: string
-  email: string
-  name: string | null
-  role: Role
-  active: boolean
-  created_at: string
+  id: string; email: string; name: string | null
+  role: Role; active: boolean; created_at: string
+  department_id: string | null
 }
 
 export default function UsersClient() {
   const [profiles, setProfiles] = useState<Profile[]>([])
-  const [currentUserId, setCurrentUserId] = useState<string>('')
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [currentUserId, setCurrentUserId] = useState('')
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [filterDept, setFilterDept] = useState<string>('all')
   const [createOpen, setCreateOpen] = useState(false)
   const [editUser, setEditUser] = useState<Profile | null>(null)
   const [isPending, startTransition] = useTransition()
 
   async function loadUsers() {
-    setLoading(true)
-    setFetchError(null)
+    setLoading(true); setFetchError(null)
     try {
       const res = await fetch('/api/users')
       const data = await res.json()
       if (!res.ok) { setFetchError(data.error ?? 'Erro desconhecido.'); return }
-      setProfiles(data.profiles)
+      setProfiles(data.profiles ?? [])
+      setDepartments(data.departments ?? [])
       setCurrentUserId(data.currentUserId)
     } catch (e: unknown) {
       setFetchError(e instanceof Error ? e.message : 'Falha na requisição.')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   useEffect(() => { loadUsers() }, [])
+
+  const filtered = useMemo(() => {
+    return profiles.filter(p => {
+      const matchSearch = !search ||
+        p.name?.toLowerCase().includes(search.toLowerCase()) ||
+        p.email.toLowerCase().includes(search.toLowerCase())
+      const matchDept = filterDept === 'all' ||
+        (filterDept === 'none' ? !p.department_id : p.department_id === filterDept)
+      return matchSearch && matchDept
+    })
+  }, [profiles, search, filterDept])
 
   function handle(result: ActionResult, onSuccess: () => void) {
     if (!result.ok) { toast.error(result.error ?? 'Erro.'); return }
     onSuccess()
   }
 
+  function deptName(id: string | null) {
+    if (!id) return '—'
+    return departments.find(d => d.id === id)?.name ?? '—'
+  }
+
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const fd = new FormData(e.currentTarget)
     startTransition(async () => {
-      const result = await createUser(fd)
-      handle(result, () => {
-        toast.success('Usuário criado!')
-        setCreateOpen(false)
-        loadUsers()
-      })
+      const result = await createUser(new FormData(e.currentTarget))
+      handle(result, () => { toast.success('Usuário criado!'); setCreateOpen(false); loadUsers() })
     })
   }
 
@@ -79,12 +89,9 @@ export default function UsersClient() {
       const result = await updateUser(editUser.id, {
         name: fd.get('name') as string,
         email: fd.get('email') as string,
+        department_id: (fd.get('department_id') as string) || null,
       })
-      handle(result, () => {
-        toast.success('Usuário atualizado!')
-        setEditUser(null)
-        loadUsers()
-      })
+      handle(result, () => { toast.success('Usuário atualizado!'); setEditUser(null); loadUsers() })
     })
   }
 
@@ -120,11 +127,12 @@ export default function UsersClient() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-foreground">Gestão de Usuários</h2>
           <p className="text-muted-foreground text-sm mt-1">
-            {loading ? 'Carregando...' : `${profiles.length} ${profiles.length === 1 ? 'usuário cadastrado' : 'usuários cadastrados'}`}
+            {loading ? 'Carregando...' : `${filtered.length} de ${profiles.length} usuário${profiles.length !== 1 ? 's' : ''}`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -137,21 +145,51 @@ export default function UsersClient() {
         </div>
       </div>
 
-      {/* Estado de erro */}
-      {fetchError && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 space-y-1">
-          <p className="text-sm font-medium text-red-500">Erro ao carregar usuários</p>
-          <p className="text-xs text-red-400 font-mono">{fetchError}</p>
+      {/* Busca + Filtro */}
+      {!loading && !fetchError && (
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nome ou e-mail..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9 pr-8"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <Select value={filterDept} onValueChange={(v) => setFilterDept(v ?? 'all')}>
+            <SelectTrigger className="w-full sm:w-52">
+              <SelectValue placeholder="Todos os departamentos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os departamentos</SelectItem>
+              <SelectItem value="none">Sem departamento</SelectItem>
+              {departments.map(d => (
+                <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
-      {/* Loading skeleton */}
+      {/* Erro */}
+      {fetchError && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4">
+          <p className="text-sm font-medium text-red-500">Erro ao carregar usuários</p>
+          <p className="text-xs text-red-400 font-mono mt-1">{fetchError}</p>
+        </div>
+      )}
+
+      {/* Loading */}
       {loading && (
-        <Card>
-          <CardContent className="py-12 flex items-center justify-center">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </CardContent>
-        </Card>
+        <Card><CardContent className="py-12 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </CardContent></Card>
       )}
 
       {/* Tabela */}
@@ -166,6 +204,7 @@ export default function UsersClient() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Usuário</TableHead>
+                  <TableHead>Departamento</TableHead>
                   <TableHead>Permissão</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Criado em</TableHead>
@@ -173,11 +212,21 @@ export default function UsersClient() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {profiles.map(profile => (
+                {filtered.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8 text-sm">
+                      Nenhum usuário encontrado.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {filtered.map(profile => (
                   <TableRow key={profile.id} className={!profile.active ? 'opacity-50' : ''}>
                     <TableCell>
                       <p className="font-medium text-sm text-foreground">{profile.name || '—'}</p>
                       <p className="text-xs text-muted-foreground">{profile.email}</p>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground">{deptName(profile.department_id)}</span>
                     </TableCell>
                     <TableCell>
                       {profile.id === currentUserId ? (
@@ -240,7 +289,7 @@ export default function UsersClient() {
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(profile.id)} className="bg-red-500 hover:bg-red-600">Excluir permanentemente</AlertDialogAction>
+                                <AlertDialogAction onClick={() => handleDelete(profile.id)} className="bg-red-500 hover:bg-red-600">Excluir</AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
@@ -260,9 +309,16 @@ export default function UsersClient() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Criar novo usuário</DialogTitle></DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4 pt-2">
-            <div className="space-y-1.5"><Label htmlFor="c-name">Nome</Label><Input id="c-name" name="name" placeholder="Nome completo" required /></div>
-            <div className="space-y-1.5"><Label htmlFor="c-email">E-mail</Label><Input id="c-email" name="email" type="email" placeholder="email@cshub.com" required /></div>
-            <div className="space-y-1.5"><Label htmlFor="c-password">Senha inicial</Label><Input id="c-password" name="password" type="password" placeholder="Mínimo 8 caracteres" minLength={8} required /></div>
+            <div className="space-y-1.5"><Label>Nome</Label><Input name="name" placeholder="Nome completo" required /></div>
+            <div className="space-y-1.5"><Label>E-mail</Label><Input name="email" type="email" placeholder="email@cshub.com" required /></div>
+            <div className="space-y-1.5"><Label>Senha inicial</Label><Input name="password" type="password" placeholder="Mínimo 8 caracteres" minLength={8} required /></div>
+            <div className="space-y-1.5">
+              <Label>Departamento</Label>
+              <select name="department_id" defaultValue="" className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-[#F97316]">
+                <option value="">Sem departamento</option>
+                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
             <div className="space-y-1.5">
               <Label>Permissão</Label>
               <select name="role" defaultValue="USER" className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-[#F97316]">
@@ -287,8 +343,15 @@ export default function UsersClient() {
           <DialogHeader><DialogTitle>Editar usuário</DialogTitle></DialogHeader>
           {editUser && (
             <form onSubmit={handleEdit} className="space-y-4 pt-2">
-              <div className="space-y-1.5"><Label htmlFor="e-name">Nome</Label><Input id="e-name" name="name" defaultValue={editUser.name ?? ''} required /></div>
-              <div className="space-y-1.5"><Label htmlFor="e-email">E-mail</Label><Input id="e-email" name="email" type="email" defaultValue={editUser.email} required /></div>
+              <div className="space-y-1.5"><Label>Nome</Label><Input name="name" defaultValue={editUser.name ?? ''} required /></div>
+              <div className="space-y-1.5"><Label>E-mail</Label><Input name="email" type="email" defaultValue={editUser.email} required /></div>
+              <div className="space-y-1.5">
+                <Label>Departamento</Label>
+                <select name="department_id" defaultValue={editUser.department_id ?? ''} className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-[#F97316]">
+                  <option value="">Sem departamento</option>
+                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
               <Separator />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setEditUser(null)}>Cancelar</Button>

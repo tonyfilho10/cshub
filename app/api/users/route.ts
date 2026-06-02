@@ -19,18 +19,19 @@ export async function GET() {
 
     const db = getDb()
 
-    const { data: me, error: meErr } = await db
+    const { data: me } = await db
       .from('profiles').select('role').eq('id', user.id).single()
 
-    if (meErr) return NextResponse.json({ error: `DB: ${meErr.message}` }, { status: 500 })
     if (me?.role !== 'ADMIN') return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
 
-    const { data: profiles, error } = await db
-      .from('profiles').select('*').order('created_at', { ascending: true })
+    const [{ data: profiles, error }, { data: departments }] = await Promise.all([
+      db.from('profiles').select('*').order('created_at', { ascending: true }),
+      db.from('departments').select('id, name, slug').order('order', { ascending: true }),
+    ])
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    return NextResponse.json({ profiles, currentUserId: user.id })
+    return NextResponse.json({ profiles, departments, currentUserId: user.id })
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : String(e) },
