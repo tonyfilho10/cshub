@@ -16,7 +16,9 @@ function getAdminClient() {
 async function getAdminOrError(): Promise<{ admin: ReturnType<typeof getAdminClient> } | { ok: false; error: string }> {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError) return { ok: false, error: `Auth error: ${authError.message}` }
     if (!user) return { ok: false, error: 'Não autenticado.' }
 
     const admin = getAdminClient()
@@ -26,12 +28,14 @@ async function getAdminOrError(): Promise<{ admin: ReturnType<typeof getAdminCli
       .eq('id', user.id)
       .single()
 
-    if (error) return { ok: false, error: `Erro ao verificar permissão: ${error.message}` }
-    if (profile?.role !== 'ADMIN') return { ok: false, error: 'Acesso negado.' }
+    if (error) return { ok: false, error: `Permissão: ${error.message} (code: ${error.code})` }
+    if (!profile) return { ok: false, error: 'Perfil não encontrado. Execute o script setup-admin.' }
+    if (profile.role !== 'ADMIN') return { ok: false, error: 'Acesso negado: você não é ADMIN.' }
 
     return { admin }
-  } catch (e) {
-    return { ok: false, error: String(e) }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { ok: false, error: `Exceção: ${msg}` }
   }
 }
 
