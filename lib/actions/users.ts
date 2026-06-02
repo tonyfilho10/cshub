@@ -1,119 +1,136 @@
 'use server'
 
-import { createClient as createSupabaseAdmin } from '@supabase/supabase-js'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 
 type Role = 'ADMIN' | 'USER'
 export type ActionResult = { ok: true } | { ok: false; error: string }
 
-// JWT service_role key (eyJ...) — usada para TUDO no servidor
-function getAdminClient() {
-  return createSupabaseAdmin(
+// Cliente Supabase com a secret key — para queries de dados (bypassa RLS)
+function getDb() {
+  return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SECRET_KEY!
   )
 }
 
-// Alias — mesma chave, Auth Admin API
-const getAuthAdminClient = getAdminClient
+// Chamada direta ao GoTrue (Auth Admin REST API)
+// Funciona com sb_secret_ sem depender do SDK auth.admin
+async function authAdmin(method: string, path: string, body?: object) {
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin${path}`
+  const res = await fetch(url, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.SUPABASE_SECRET_KEY}`,
+      'apikey': process.env.SUPABASE_SECRET_KEY!,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.msg ?? data.message ?? `HTTP ${res.status}`)
+  return data
+}
 
-async function getAdminOrError(): Promise<{ admin: ReturnType<typeof getAdminClient> } | { ok: false; error: string }> {
+async function assertAdmin(): Promise<string | null> {
   try {
     const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return 'Não autenticado.'
 
-    if (authError) return { ok: false, error: `Auth error: ${authError.message}` }
-    if (!user) return { ok: false, error: 'Não autenticado.' }
+    const db = getDb()
+    const { data: profile } = await db
+      .from('profiles').select('role').eq('id', user.id).single()
 
-    const admin = getAdminClient()
-    const { data: profile, error } = await admin
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (error) return { ok: false, error: `Permissão: ${error.message} (code: ${error.code})` }
-    if (!profile) return { ok: false, error: 'Perfil não encontrado. Execute o script setup-admin.' }
-    if (profile.role !== 'ADMIN') return { ok: false, error: 'Acesso negado: você não é ADMIN.' }
-
-    return { admin }
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { ok: false, error: `Exceção: ${msg}` }
+    if (profile?.role !== 'ADMIN') return 'Acesso negado.'
+    return null
+  } catch (e) {
+    return `Erro: ${e instanceof Error ? e.message : String(e)}`
   }
 }
 
 export async function createUser(formData: FormData): Promise<ActionResult> {
-  const auth = await getAdminOrError()
-  if ('ok' in auth) return auth
+  const err = await assertAdmin()
+  if (err) return { ok: false, error: err }
 
   const email    = formData.get('email')    as string
   const name     = formData.get('name')     as string
   const password = formData.get('password') as string
   const role     = (formData.get('role') as Role) ?? 'USER'
 
-  const authAdmin = getAuthAdminClient()
-  const { data, error } = await authAdmin.auth.admin.createUser({
-    email, password, email_confirm: true,
-  })
-  if (error) return { ok: false, error: `Erro ao criar usuário: ${error.message}` }
+  try {
+    const authUser = await authAdmin('POST', '/users', {
+      email,
+      password,
+      email_confirm: true,
+    })
 
-  const { error: profileError } = await auth.admin
-    .from('profiles')
-    .insert({ id: data.user.id, email, name, role, active: true })
+    const db = getDb()
+    const { error: profileError } = await db
+      .from('profiles')
+      .insert({ id: authUser.id, email, name, role, active: true })
 
-  if (profileError) return { ok: false, error: `Erro ao criar perfil: ${profileError.message}` }
-
-  return { ok: true }
+    if (profileError) return { ok: false, error: `Perfil: ${profileError.message}` }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 export async function updateUser(userId: string, data: { name?: string; email?: string }): Promise<ActionResult> {
-  const auth = await getAdminOrError()
-  if ('ok' in auth) return auth
+  const err = await assertAdmin()
+  if (err) return { ok: false, error: err }
 
-  const { error } = await auth.admin.from('profiles').update(data).eq('id', userId)
-  if (error) return { ok: false, error: error.message }
+  try {
+    const db = getDb()
+    const { error } = await db.from('profiles').update(data).eq('id', userId)
+    if (error) return { ok: false, error: error.message }
 
-  if (data.email) {
-    const authAdmin = getAuthAdminClient()
-    const { error: authError } = await authAdmin.auth.admin.updateUserById(userId, { email: data.email })
-    if (authError) return { ok: false, error: authError.message }
+    if (data.email) {
+      await authAdmin('PUT', `/users/${userId}`, { email: data.email })
+    }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
-
-  return { ok: true }
 }
 
 export async function updateUserRole(userId: string, role: Role): Promise<ActionResult> {
-  const auth = await getAdminOrError()
-  if ('ok' in auth) return auth
+  const err = await assertAdmin()
+  if (err) return { ok: false, error: err }
 
-  const { error } = await auth.admin.from('profiles').update({ role }).eq('id', userId)
+  const db = getDb()
+  const { error } = await db.from('profiles').update({ role }).eq('id', userId)
   if (error) return { ok: false, error: error.message }
-
   return { ok: true }
 }
 
 export async function toggleUserActive(userId: string, active: boolean): Promise<ActionResult> {
-  const auth = await getAdminOrError()
-  if ('ok' in auth) return auth
+  const err = await assertAdmin()
+  if (err) return { ok: false, error: err }
 
-  await auth.admin.from('profiles').update({ active }).eq('id', userId)
-
-  const authAdmin = getAuthAdminClient()
-  await authAdmin.auth.admin.updateUserById(userId, {
-    ban_duration: active ? 'none' : '87600h',
-  })
-
-  return { ok: true }
+  try {
+    const db = getDb()
+    await db.from('profiles').update({ active }).eq('id', userId)
+    await authAdmin('PUT', `/users/${userId}`, {
+      ban_duration: active ? 'none' : '87600h',
+    })
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 export async function deleteUser(userId: string): Promise<ActionResult> {
-  const auth = await getAdminOrError()
-  if ('ok' in auth) return auth
+  const err = await assertAdmin()
+  if (err) return { ok: false, error: err }
 
-  const authAdmin = getAuthAdminClient()
-  await authAdmin.auth.admin.deleteUser(userId)
-  await auth.admin.from('profiles').delete().eq('id', userId)
-
-  return { ok: true }
+  try {
+    await authAdmin('DELETE', `/users/${userId}`)
+    const db = getDb()
+    await db.from('profiles').delete().eq('id', userId)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
 }
