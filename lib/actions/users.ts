@@ -6,10 +6,19 @@ import { createClient } from '@/lib/supabase/server'
 type Role = 'ADMIN' | 'USER'
 export type ActionResult = { ok: true } | { ok: false; error: string }
 
+// sb_secret_ → acesso ao banco (Data API)
 function getAdminClient() {
   return createSupabaseAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SECRET_KEY!
+  )
+}
+
+// eyJ... service_role JWT → auth.admin operations
+function getAuthAdminClient() {
+  return createSupabaseAdmin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 }
 
@@ -48,7 +57,8 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
   const password = formData.get('password') as string
   const role     = (formData.get('role') as Role) ?? 'USER'
 
-  const { data, error } = await auth.admin.auth.admin.createUser({
+  const authAdmin = getAuthAdminClient()
+  const { data, error } = await authAdmin.auth.admin.createUser({
     email, password, email_confirm: true,
   })
   if (error) return { ok: false, error: `Erro ao criar usuário: ${error.message}` }
@@ -70,7 +80,8 @@ export async function updateUser(userId: string, data: { name?: string; email?: 
   if (error) return { ok: false, error: error.message }
 
   if (data.email) {
-    const { error: authError } = await auth.admin.auth.admin.updateUserById(userId, { email: data.email })
+    const authAdmin = getAuthAdminClient()
+    const { error: authError } = await authAdmin.auth.admin.updateUserById(userId, { email: data.email })
     if (authError) return { ok: false, error: authError.message }
   }
 
@@ -92,7 +103,9 @@ export async function toggleUserActive(userId: string, active: boolean): Promise
   if ('ok' in auth) return auth
 
   await auth.admin.from('profiles').update({ active }).eq('id', userId)
-  await auth.admin.auth.admin.updateUserById(userId, {
+
+  const authAdmin = getAuthAdminClient()
+  await authAdmin.auth.admin.updateUserById(userId, {
     ban_duration: active ? 'none' : '87600h',
   })
 
@@ -103,7 +116,8 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
   const auth = await getAdminOrError()
   if ('ok' in auth) return auth
 
-  await auth.admin.auth.admin.deleteUser(userId)
+  const authAdmin = getAuthAdminClient()
+  await authAdmin.auth.admin.deleteUser(userId)
   await auth.admin.from('profiles').delete().eq('id', userId)
 
   return { ok: true }
