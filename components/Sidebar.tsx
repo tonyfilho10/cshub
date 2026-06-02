@@ -53,9 +53,9 @@ export default function Sidebar() {
 
   async function handleLogout() {
     const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
+    await supabase.auth.signOut({ scope: 'local' })
+    // Hard redirect garante limpeza total de cookies e estado
+    window.location.href = '/login'
   }
 
   function isActive(slug: string) {
