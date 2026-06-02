@@ -10,10 +10,9 @@ export async function GET() {
 
   if (!user) return NextResponse.json({ role: null }, { status: 401 })
 
-  // Usa o service role para buscar o perfil sem depender de DIRECT_URL
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
   const { data: profile } = await admin

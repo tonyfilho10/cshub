@@ -6,21 +6,16 @@ import { createClient } from '@/lib/supabase/server'
 type Role = 'ADMIN' | 'USER'
 export type ActionResult = { ok: true } | { ok: false; error: string }
 
-// sb_secret_ → acesso ao banco (Data API)
+// JWT service_role key (eyJ...) — usada para TUDO no servidor
 function getAdminClient() {
-  return createSupabaseAdmin(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!
-  )
-}
-
-// eyJ... service_role JWT → auth.admin operations
-function getAuthAdminClient() {
   return createSupabaseAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 }
+
+// Alias — mesma chave, Auth Admin API
+const getAuthAdminClient = getAdminClient
 
 async function getAdminOrError(): Promise<{ admin: ReturnType<typeof getAdminClient> } | { ok: false; error: string }> {
   try {
