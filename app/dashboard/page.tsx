@@ -1,4 +1,4 @@
-import { createClient as createAdmin } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 import ToolCard from '@/components/ToolCard'
 import { Tool } from '@/lib/types'
 
@@ -6,12 +6,8 @@ export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
   try {
-    const sb = createAdmin(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-
-    const { data: tools } = await sb
+    const supabase = await createClient()
+    const { data: tools } = await supabase
       .from('tools').select('*').eq('active', true).order('name')
 
     const unique: Tool[] = tools

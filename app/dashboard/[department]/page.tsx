@@ -1,4 +1,4 @@
-import { createClient as createAdmin } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 import ToolCard from '@/components/ToolCard'
 import { Tool } from '@/lib/types'
 
@@ -24,16 +24,13 @@ export default async function DepartmentPage({
   const label = DEPARTMENT_LABELS[department] ?? department
 
   try {
-    const sb = createAdmin(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = await createClient()
 
-    const { data: dept } = await sb
+    const { data: dept } = await supabase
       .from('departments').select('id').eq('slug', department).single()
 
     const { data: tools } = dept
-      ? await sb.from('tools').select('*').eq('department_id', dept.id).eq('active', true).order('name')
+      ? await supabase.from('tools').select('*').eq('department_id', dept.id).eq('active', true).order('name')
       : { data: [] }
 
     return (
