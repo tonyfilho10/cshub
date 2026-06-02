@@ -23,7 +23,7 @@ async function authAdmin(method: string, path: string, body?: object) {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     },
     body: body ? JSON.stringify(body) : undefined,
   })
