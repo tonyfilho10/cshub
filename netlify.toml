@@ -4,3 +4,8 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# NEXT_PUBLIC_ variables are intentionally embedded in the client bundle.
+# They are not secrets — safe to exclude from scanning.
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_SUPABASE_URL"
