@@ -52,29 +52,25 @@ export default function PerfilPage() {
 
     setUploadingAvatar(true)
     try {
+      // Upload via API route (service role — sem RLS)
+      const fd = new FormData()
+      fd.append('file', file)
+
+      const res = await fetch('/api/upload-avatar', { method: 'POST', body: fd })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error ?? 'Erro no upload.')
+
+      // Atualiza metadata do usuário com a nova URL
       const supabase = createClient()
-      const ext = file.name.split('.').pop()
-      const path = `${user.id}/avatar.${ext}`
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(path, file, { upsert: true })
-
-      if (uploadError) throw uploadError
-
-      const { data } = supabase.storage.from('avatars').getPublicUrl(path)
-      const publicUrl = `${data.publicUrl}?t=${Date.now()}`
-
       const { error: updateError } = await supabase.auth.updateUser({
-        data: { avatar_url: publicUrl },
+        data: { avatar_url: result.url },
       })
-
       if (updateError) throw updateError
 
-      setAvatarUrl(publicUrl)
+      setAvatarUrl(result.url)
       toast.success('Foto de perfil atualizada!')
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : (err as { message?: string })?.message ?? String(err)
+      const msg = err instanceof Error ? err.message : String(err)
       toast.error(`Erro: ${msg}`)
       console.error(err)
     } finally {
