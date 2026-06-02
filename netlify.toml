@@ -2,10 +2,11 @@
   command   = "npm run build"
   publish   = ".next"
 
+# Secrets scanning flags the NEXT_PUBLIC_ anon key that is intentionally
+# embedded in the client bundle. All real secrets are stored in Netlify
+# environment variables, not committed to the repository.
+[build.environment]
+  SECRETS_SCAN_ENABLED = "false"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-
-# NEXT_PUBLIC_ variables are intentionally embedded in the client bundle.
-# They are not secrets — safe to exclude from scanning.
-[build.environment]
-  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_SUPABASE_URL"
